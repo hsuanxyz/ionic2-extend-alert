@@ -1,0 +1,22 @@
+{
+  "name": "ionic2-extend-alert",
+  "version": "0.0.1",
+  "description": "ionic2 alert Auto-cloes",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build":"tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HsuanXyz/ionic2-extend-alert.git"
+  },
+  "keywords": [
+    "ionic2",
+    "alert",
+    "Auto-cloes",
+    "Count-down"
+  ],
+  "author": "HsuanLee",
+  "license": "MIT"
+}
