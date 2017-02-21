@@ -1,0 +1,12 @@
+
+*.iml
+
+.idea/misc.xml
+
+.idea/modules.xml
+
+.idea/typescript-compiler.xml
+
+.idea/vcs.xml
+
+.idea/workspace.xml
