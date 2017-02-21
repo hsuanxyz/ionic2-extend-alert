@@ -85,6 +85,15 @@ export class HomePage {
 }
 ```
 
+
+## Extend API
+Button options
+
+| Property | Type | Description |
+| --- | --- | --- |
+| time | number | auto-cancel time |
+
+
 ## Environment
 ```
 Cordova CLI: 6.4.0
