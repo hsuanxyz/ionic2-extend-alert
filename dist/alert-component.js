@@ -1,31 +1,26 @@
-"use strict";
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
-};
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
-var core_1 = require("@angular/core");
-var config_1 = require("ionic-angular/config/config");
-var dom_1 = require("ionic-angular/util/dom");
-var ionic_angular_1 = require("ionic-angular");
-var util_1 = require("ionic-angular/util/util");
-var key_1 = require("ionic-angular/platform/key");
-var AlertCmp = (function () {
+import { Component, ElementRef, HostListener, Renderer, ViewEncapsulation } from '@angular/core';
+import { Config } from 'ionic-angular/config/config';
+import { NON_TEXT_INPUT_REGEX } from 'ionic-angular/util/dom';
+import { GestureController, BLOCK_ALL, ViewController, Platform, NavParams } from 'ionic-angular';
+import { isPresent, assert } from 'ionic-angular/util/util';
+import { Key } from 'ionic-angular/platform/key';
+/**
+ * @private
+ */
+export var AlertCmp = (function () {
     function AlertCmp(_viewCtrl, _elementRef, config, gestureCtrl, params, _renderer, _plt) {
         this._viewCtrl = _viewCtrl;
         this._elementRef = _elementRef;
         this._renderer = _renderer;
         this._plt = _plt;
-        this.gestureBlocker = gestureCtrl.createBlocker(ionic_angular_1.BLOCK_ALL);
+        // gesture blocker is used to disable gestures dynamically
+        this.gestureBlocker = gestureCtrl.createBlocker(BLOCK_ALL);
         this.d = params.data;
         this.mode = config.get('mode');
         _renderer.setElementClass(_elementRef.nativeElement, "alert-" + this.mode, true);
         if (this.d.cssClass) {
             this.d.cssClass.split(' ').forEach(function (cssClass) {
+                // Make sure the class isn't whitespace, otherwise it throws exceptions
                 if (cssClass.trim() !== '')
                     _renderer.setElementClass(_elementRef.nativeElement, cssClass, true);
             });
@@ -49,6 +44,7 @@ var AlertCmp = (function () {
     }
     AlertCmp.prototype.ionViewDidLoad = function () {
         var _this = this;
+        // normalize the data
         var data = this.d;
         data.buttons = data.buttons.map(function (button) {
             if (typeof button === 'string') {
@@ -59,16 +55,18 @@ var AlertCmp = (function () {
         data.inputs = data.inputs.map(function (input, index) {
             return {
                 type: input.type || 'text',
-                name: util_1.isPresent(input.name) ? input.name : index,
-                placeholder: util_1.isPresent(input.placeholder) ? input.placeholder : '',
-                value: util_1.isPresent(input.value) ? input.value : '',
+                name: isPresent(input.name) ? input.name : index,
+                placeholder: isPresent(input.placeholder) ? input.placeholder : '',
+                value: isPresent(input.value) ? input.value : '',
                 label: input.label,
                 checked: !!input.checked,
                 disabled: !!input.disabled,
-                id: util_1.isPresent(input.id) ? input.id : "alert-input-" + _this.id + "-" + index,
-                handler: util_1.isPresent(input.handler) ? input.handler : null,
+                id: isPresent(input.id) ? input.id : "alert-input-" + _this.id + "-" + index,
+                handler: isPresent(input.handler) ? input.handler : null,
             };
         });
+        // An alert can be created with several different inputs. Radios,
+        // checkboxes and inputs are all accepted, but they cannot be mixed.
         var inputTypes = [];
         data.inputs.forEach(function (input) {
             if (inputTypes.indexOf(input.type) < 0) {
@@ -83,8 +81,12 @@ var AlertCmp = (function () {
         if (checkedInput) {
             this.activeId = checkedInput.id;
         }
-        var hasTextInput = (this.d.inputs.length && this.d.inputs.some(function (i) { return !(dom_1.NON_TEXT_INPUT_REGEX.test(i.type)); }));
+        var hasTextInput = (this.d.inputs.length && this.d.inputs.some(function (i) { return !(NON_TEXT_INPUT_REGEX.test(i.type)); }));
         if (hasTextInput && this._plt.is('mobile')) {
+            // this alert has a text input and it's on a mobile device so we should align
+            // the alert up high because we need to leave space for the virtual keboard
+            // this also helps prevent the layout getting all messed up from
+            // the browser trying to scroll the input into a safe area
             this._renderer.setElementClass(this._elementRef.nativeElement, 'alert-top', true);
         }
         this.autoClose();
@@ -100,7 +102,12 @@ var AlertCmp = (function () {
         this._plt.focusOutActiveElement();
     };
     AlertCmp.prototype.ionViewDidEnter = function () {
+        // focus out of the active element
         this._plt.focusOutActiveElement();
+        // set focus on the first input or button in the alert
+        // note that this does not always work and bring up the keyboard on
+        // devices since the focus command must come from the user's touch event
+        // and ionViewDidEnter is not in the same callstack as the touch event :(
         var focusableEle = this._elementRef.nativeElement.querySelector('input,button');
         if (focusableEle) {
             focusableEle.focus();
@@ -109,14 +116,18 @@ var AlertCmp = (function () {
     };
     AlertCmp.prototype.keyUp = function (ev) {
         if (this.enabled && this._viewCtrl.isLast()) {
-            if (ev.keyCode === key_1.Key.ENTER) {
+            if (ev.keyCode === Key.ENTER) {
                 if (this.lastClick + 1000 < Date.now()) {
+                    // do not fire this click if there recently was already a click
+                    // this can happen when the button has focus and used the enter
+                    // key to click the button. However, both the click handler and
+                    // this keyup event will fire, so only allow one of them to go.
                     console.debug("alert, enter button");
                     var button = this.d.buttons[this.d.buttons.length - 1];
                     this.btnClick(button);
                 }
             }
-            else if (ev.keyCode === key_1.Key.ESCAPE) {
+            else if (ev.keyCode === Key.ESCAPE) {
                 console.debug("alert, escape button");
                 this.bdClick();
             }
@@ -127,10 +138,14 @@ var AlertCmp = (function () {
         if (!this.enabled) {
             return;
         }
+        // keep the time of the most recent button click
         this.lastClick = Date.now();
         var shouldDismiss = true;
         if (button.handler) {
+            // a handler has been provided, execute it
+            // pass the handler the values from the inputs
             if (button.handler(this.getValues()) === false) {
+                // if the return value of the handler is false then do not dismiss
                 shouldDismiss = false;
             }
         }
@@ -204,12 +219,18 @@ var AlertCmp = (function () {
     };
     AlertCmp.prototype.getValues = function () {
         if (this.inputType === 'radio') {
+            // this is an alert with radio buttons (single value select)
+            // return the one value which is checked, otherwise undefined
             var checkedInput = this.d.inputs.find(function (i) { return i.checked; });
             return checkedInput ? checkedInput.value : undefined;
         }
         if (this.inputType === 'checkbox') {
+            // this is an alert with checkboxes (multiple value select)
+            // return an array of all the checked values
             return this.d.inputs.filter(function (i) { return i.checked; }).map(function (i) { return i.value; });
         }
+        // this is an alert with text inputs
+        // return an object of all the values with the input name as the key
         var values = {};
         this.d.inputs.forEach(function (i) {
             values[i.name] = i.value;
@@ -217,72 +238,76 @@ var AlertCmp = (function () {
         return values;
     };
     AlertCmp.prototype.ngOnDestroy = function () {
-        util_1.assert(this.gestureBlocker.blocked === false, 'gesture blocker must be already unblocked');
+        assert(this.gestureBlocker.blocked === false, 'gesture blocker must be already unblocked');
         this.gestureBlocker.destroy();
+    };
+    AlertCmp.decorators = [
+        { type: Component, args: [{
+                    selector: 'ion-alert',
+                    template: '<ion-backdrop (click)="bdClick()" [class.backdrop-no-tappable]="!d.enableBackdropDismiss"></ion-backdrop>' +
+                        '<div class="alert-wrapper">' +
+                        '<div class="alert-head">' +
+                        '<h2 id="{{hdrId}}" class="alert-title" *ngIf="d.title" [innerHTML]="d.title"></h2>' +
+                        '<h3 id="{{subHdrId}}" class="alert-sub-title" *ngIf="d.subTitle" [innerHTML]="d.subTitle"></h3>' +
+                        '</div>' +
+                        '<div id="{{msgId}}" class="alert-message" [innerHTML]="d.message"></div>' +
+                        '<div *ngIf="d.inputs.length" [ngSwitch]="inputType">' +
+                        '<template ngSwitchCase="radio">' +
+                        '<div class="alert-radio-group" role="radiogroup" [attr.aria-labelledby]="hdrId" [attr.aria-activedescendant]="activeId">' +
+                        '<button ion-button="alert-radio-button" *ngFor="let i of d.inputs" (click)="rbClick(i)" [attr.aria-checked]="i.checked" [disabled]="i.disabled" [attr.id]="i.id" class="alert-tappable alert-radio" role="radio">' +
+                        '<div class="alert-radio-icon"><div class="alert-radio-inner"></div></div>' +
+                        '<div class="alert-radio-label">' +
+                        '{{i.label}}' +
+                        '</div>' +
+                        '</button>' +
+                        '</div>' +
+                        '</template>' +
+                        '<template ngSwitchCase="checkbox">' +
+                        '<div class="alert-checkbox-group">' +
+                        '<button ion-button="alert-checkbox-button" *ngFor="let i of d.inputs" (click)="cbClick(i)" [attr.aria-checked]="i.checked" [disabled]="i.disabled" class="alert-tappable alert-checkbox" role="checkbox">' +
+                        '<div class="alert-checkbox-icon"><div class="alert-checkbox-inner"></div></div>' +
+                        '<div class="alert-checkbox-label">' +
+                        '{{i.label}}' +
+                        '</div>' +
+                        '</button>' +
+                        '</div>' +
+                        '</template>' +
+                        '<template ngSwitchDefault>' +
+                        '<div class="alert-input-group">' +
+                        '<div *ngFor="let i of d.inputs" class="alert-input-wrapper">' +
+                        '<input [placeholder]="i.placeholder" [(ngModel)]="i.value" [type]="i.type" class="alert-input">' +
+                        '</div>' +
+                        '</div>' +
+                        '</template>' +
+                        '</div>' +
+                        '<div class="alert-button-group" [ngClass]="{\'alert-button-group-vertical\':d.buttons.length>2}">' +
+                        '<button ion-button="alert-button" *ngFor="let b of d.buttons" (click)="btnClick(b)" [ngClass]="b.cssClass">' +
+                        '{{b.text}}' +
+                        '</button>' +
+                        '</div>' +
+                        '</div>',
+                    host: {
+                        'role': 'dialog',
+                        '[attr.aria-labelledby]': 'hdrId',
+                        '[attr.aria-describedby]': 'descId'
+                    },
+                    encapsulation: ViewEncapsulation.None,
+                },] },
+    ];
+    /** @nocollapse */
+    AlertCmp.ctorParameters = [
+        { type: ViewController, },
+        { type: ElementRef, },
+        { type: Config, },
+        { type: GestureController, },
+        { type: NavParams, },
+        { type: Renderer, },
+        { type: Platform, },
+    ];
+    AlertCmp.propDecorators = {
+        'keyUp': [{ type: HostListener, args: ['body:keyup', ['$event'],] },],
     };
     return AlertCmp;
 }());
-__decorate([
-    core_1.HostListener('body:keyup', ['$event']),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [KeyboardEvent]),
-    __metadata("design:returntype", void 0)
-], AlertCmp.prototype, "keyUp", null);
-AlertCmp = __decorate([
-    core_1.Component({
-        selector: 'ion-alert',
-        template: '<ion-backdrop (click)="bdClick()" [class.backdrop-no-tappable]="!d.enableBackdropDismiss"></ion-backdrop>' +
-            '<div class="alert-wrapper">' +
-            '<div class="alert-head">' +
-            '<h2 id="{{hdrId}}" class="alert-title" *ngIf="d.title" [innerHTML]="d.title"></h2>' +
-            '<h3 id="{{subHdrId}}" class="alert-sub-title" *ngIf="d.subTitle" [innerHTML]="d.subTitle"></h3>' +
-            '</div>' +
-            '<div id="{{msgId}}" class="alert-message" [innerHTML]="d.message"></div>' +
-            '<div *ngIf="d.inputs.length" [ngSwitch]="inputType">' +
-            '<template ngSwitchCase="radio">' +
-            '<div class="alert-radio-group" role="radiogroup" [attr.aria-labelledby]="hdrId" [attr.aria-activedescendant]="activeId">' +
-            '<button ion-button="alert-radio-button" *ngFor="let i of d.inputs" (click)="rbClick(i)" [attr.aria-checked]="i.checked" [disabled]="i.disabled" [attr.id]="i.id" class="alert-tappable alert-radio" role="radio">' +
-            '<div class="alert-radio-icon"><div class="alert-radio-inner"></div></div>' +
-            '<div class="alert-radio-label">' +
-            '{{i.label}}' +
-            '</div>' +
-            '</button>' +
-            '</div>' +
-            '</template>' +
-            '<template ngSwitchCase="checkbox">' +
-            '<div class="alert-checkbox-group">' +
-            '<button ion-button="alert-checkbox-button" *ngFor="let i of d.inputs" (click)="cbClick(i)" [attr.aria-checked]="i.checked" [disabled]="i.disabled" class="alert-tappable alert-checkbox" role="checkbox">' +
-            '<div class="alert-checkbox-icon"><div class="alert-checkbox-inner"></div></div>' +
-            '<div class="alert-checkbox-label">' +
-            '{{i.label}}' +
-            '</div>' +
-            '</button>' +
-            '</div>' +
-            '</template>' +
-            '<template ngSwitchDefault>' +
-            '<div class="alert-input-group">' +
-            '<div *ngFor="let i of d.inputs" class="alert-input-wrapper">' +
-            '<input [placeholder]="i.placeholder" [(ngModel)]="i.value" [type]="i.type" class="alert-input">' +
-            '</div>' +
-            '</div>' +
-            '</template>' +
-            '</div>' +
-            '<div class="alert-button-group" [ngClass]="{\'alert-button-group-vertical\':d.buttons.length>2}">' +
-            '<button ion-button="alert-button" *ngFor="let b of d.buttons" (click)="btnClick(b)" [ngClass]="b.cssClass">' +
-            '{{b.text}}' +
-            '</button>' +
-            '</div>' +
-            '</div>',
-        host: {
-            'role': 'dialog',
-            '[attr.aria-labelledby]': 'hdrId',
-            '[attr.aria-describedby]': 'descId'
-        },
-        encapsulation: core_1.ViewEncapsulation.None,
-    }),
-    __metadata("design:paramtypes", [typeof (_a = typeof ionic_angular_1.ViewController !== "undefined" && ionic_angular_1.ViewController) === "function" && _a || Object, typeof (_b = typeof core_1.ElementRef !== "undefined" && core_1.ElementRef) === "function" && _b || Object, typeof (_c = typeof config_1.Config !== "undefined" && config_1.Config) === "function" && _c || Object, typeof (_d = typeof ionic_angular_1.GestureController !== "undefined" && ionic_angular_1.GestureController) === "function" && _d || Object, typeof (_e = typeof ionic_angular_1.NavParams !== "undefined" && ionic_angular_1.NavParams) === "function" && _e || Object, typeof (_f = typeof core_1.Renderer !== "undefined" && core_1.Renderer) === "function" && _f || Object, typeof (_g = typeof ionic_angular_1.Platform !== "undefined" && ionic_angular_1.Platform) === "function" && _g || Object])
-], AlertCmp);
-exports.AlertCmp = AlertCmp;
 var alertIds = -1;
-var _a, _b, _c, _d, _e, _f, _g;
 //# sourceMappingURL=alert-component.js.map

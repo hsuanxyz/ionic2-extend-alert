@@ -1,4 +1,7 @@
 import { Transition } from 'ionic-angular/transitions/transition';
+/**
+ * Animations for alerts
+ */
 export declare class AlertPopIn extends Transition {
     init(): void;
 }
